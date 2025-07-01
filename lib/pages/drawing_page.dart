@@ -1,8 +1,13 @@
 import 'dart:async';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
+import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
+import 'package:file_picker/file_picker.dart';
 
 import '../models/stroke.dart';
 import '../intents.dart';
@@ -19,13 +24,13 @@ class _DrawingPageState extends State<DrawingPage> {
   final List<Stroke> _strokes = [];
   final List<Stroke> _redoStack = [];
   Stroke? _currentStroke;
+  final GlobalKey _canvasKey = GlobalKey();
 
   final ValueNotifier<int> _repaintNotifier = ValueNotifier<int>(0);
   Color _selectedColor = Colors.blue;
   double _strokeWidth = 4.0;
 
   final FocusNode _focusNode = FocusNode();
-
   Timer? _repaintDebounceTimer;
 
   void _startStroke(Offset point) {
@@ -181,19 +186,6 @@ class _DrawingPageState extends State<DrawingPage> {
             const ColorPickerIntent(),
         LogicalKeySet(LogicalKeyboardKey.meta, LogicalKeyboardKey.keyB):
             const StrokeWidthIntent(),
-        LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyZ):
-            const UndoIntent(),
-        LogicalKeySet(
-          LogicalKeyboardKey.control,
-          LogicalKeyboardKey.shift,
-          LogicalKeyboardKey.keyZ,
-        ): const RedoIntent(),
-        LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.backspace):
-            const ClearIntent(),
-        LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyK):
-            const ColorPickerIntent(),
-        LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyB):
-            const StrokeWidthIntent(),
       },
       actions: <Type, Action<Intent>>{
         UndoIntent: CallbackAction<UndoIntent>(onInvoke: (_) => _undo()),
@@ -240,6 +232,11 @@ class _DrawingPageState extends State<DrawingPage> {
               icon: const Icon(Icons.clear),
               onPressed: _clearCanvas,
             ),
+            IconButton(
+              tooltip: 'Export as PNG',
+              icon: const Icon(Icons.download),
+              onPressed: _exportCanvasToImage,
+            ),
           ],
         ),
         body: DrawingCanvas(
@@ -249,8 +246,46 @@ class _DrawingPageState extends State<DrawingPage> {
           onDraw: _addPoint,
           onEndStroke: _endStroke,
           repaintNotifier: _repaintNotifier,
+          repaintKey: _canvasKey,
         ),
       ),
     );
+  }
+
+  Future<void> _exportCanvasToImage() async {
+    try {
+      final boundary =
+          _canvasKey.currentContext?.findRenderObject()
+              as RenderRepaintBoundary?;
+      if (boundary == null) return;
+
+      final ui.Image image = await boundary.toImage(pixelRatio: 3.0);
+      final ByteData? byteData = await image.toByteData(
+        format: ui.ImageByteFormat.png,
+      );
+      if (byteData == null) return;
+
+      final Uint8List pngBytes = byteData.buffer.asUint8List();
+
+      final String? path = await FilePicker.platform.saveFile(
+        dialogTitle: 'Save your drawing as PNG',
+        fileName: 'Untitled.png',
+        type: FileType.custom,
+        allowedExtensions: ['png'],
+      );
+
+      if (path == null) return;
+
+      final file = File(path);
+      await file.writeAsBytes(pngBytes);
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Saved to: $path')));
+      }
+    } catch (err) {
+      debugPrint('Failed to export image: $err');
+    }
   }
 }

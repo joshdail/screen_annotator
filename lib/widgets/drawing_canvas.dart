@@ -10,6 +10,7 @@ class DrawingCanvas extends StatelessWidget {
   final ValueChanged<Offset> onDraw;
   final VoidCallback onEndStroke;
   final ValueNotifier<int> repaintNotifier;
+  final GlobalKey repaintKey;
 
   const DrawingCanvas({
     super.key,
@@ -19,6 +20,7 @@ class DrawingCanvas extends StatelessWidget {
     required this.onDraw,
     required this.onEndStroke,
     required this.repaintNotifier,
+    required this.repaintKey,
   });
 
   @override
@@ -27,13 +29,16 @@ class DrawingCanvas extends StatelessWidget {
       onPanStart: (details) => onStartStroke(details.localPosition),
       onPanUpdate: (details) => onDraw(details.localPosition),
       onPanEnd: (_) => onEndStroke(),
-      child: CustomPaint(
-        painter: DrawingPainter(
-          strokes: strokes,
-          currentStroke: currentStroke,
-          repaint: repaintNotifier,
+      child: RepaintBoundary(
+        key: repaintKey,
+        child: CustomPaint(
+          painter: DrawingPainter(
+            strokes: strokes,
+            currentStroke: currentStroke,
+            repaint: repaintNotifier,
+          ),
+          size: Size.infinite,
         ),
-        size: Size.infinite,
       ),
     );
   }
