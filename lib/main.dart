@@ -1,4 +1,7 @@
+import 'dart:async'; // For Timer debounce
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 
 void main() {
@@ -11,19 +14,22 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const MaterialApp(
-      title: 'Drawing Canvas',
       home: DrawingPage(),
       debugShowCheckedModeBanner: false,
     );
   }
 }
 
-// A stroke contains a list of points and a color
 class Stroke {
   final List<Offset> points;
   final Color color;
+  final double strokeWidth;
 
-  Stroke({required this.points, required this.color});
+  Stroke({
+    required this.points,
+    required this.color,
+    required this.strokeWidth,
+  });
 }
 
 class DrawingPage extends StatefulWidget {
@@ -35,14 +41,24 @@ class DrawingPage extends StatefulWidget {
 
 class _DrawingPageState extends State<DrawingPage> {
   final List<Stroke> _strokes = [];
+  final List<Stroke> _redoStack = [];
   Stroke? _currentStroke;
 
   final ValueNotifier<int> _repaintNotifier = ValueNotifier<int>(0);
   Color _selectedColor = Colors.blue;
+  double _strokeWidth = 4.0;
+
+  final FocusNode _focusNode = FocusNode();
+
+  Timer? _repaintDebounceTimer;
 
   void _startStroke(Offset point) {
     setState(() {
-      _currentStroke = Stroke(points: [point], color: _selectedColor);
+      _currentStroke = Stroke(
+        points: [point],
+        color: _selectedColor,
+        strokeWidth: _strokeWidth,
+      );
     });
     _incrementRepaintNotifier();
   }
@@ -56,6 +72,7 @@ class _DrawingPageState extends State<DrawingPage> {
     if (_currentStroke != null) {
       setState(() {
         _strokes.add(_currentStroke!);
+        _redoStack.clear();
         _currentStroke = null;
       });
     }
@@ -65,97 +82,216 @@ class _DrawingPageState extends State<DrawingPage> {
   void _clearCanvas() {
     setState(() {
       _strokes.clear();
+      _redoStack.clear();
       _currentStroke = null;
     });
     _incrementRepaintNotifier();
   }
 
+  void _undo() {
+    if (_strokes.isNotEmpty) {
+      setState(() {
+        _redoStack.add(_strokes.removeLast());
+      });
+      _incrementRepaintNotifier();
+    }
+  }
+
+  void _redo() {
+    if (_redoStack.isNotEmpty) {
+      setState(() {
+        _strokes.add(_redoStack.removeLast());
+      });
+      _incrementRepaintNotifier();
+    }
+  }
+
   void _incrementRepaintNotifier() {
-    _repaintNotifier.value++;
+    // Debounce repaint calls to ~60fps (every 16ms)
+    if (_repaintDebounceTimer?.isActive ?? false) return;
+    _repaintDebounceTimer = Timer(const Duration(milliseconds: 16), () {
+      _repaintNotifier.value++;
+    });
   }
 
   void _openColorPicker() {
-    Color pickerColor = _selectedColor;
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Pick a color'),
+      builder: (_) => AlertDialog(
+        title: const Text("Select Color"),
         content: SingleChildScrollView(
           child: ColorPicker(
-            pickerColor: pickerColor,
-            onColorChanged: (color) => pickerColor = color,
-            enableAlpha: false,
-            showLabel: true,
-            pickerAreaHeightPercent: 0.8,
+            pickerColor: _selectedColor,
+            onColorChanged: (color) {
+              setState(() => _selectedColor = color);
+            },
           ),
         ),
         actions: [
           TextButton(
-            child: const Text('Cancel'),
             onPressed: () => Navigator.of(context).pop(),
-          ),
-          TextButton(
-            child: const Text('Select'),
-            onPressed: () {
-              setState(() => _selectedColor = pickerColor);
-              Navigator.of(context).pop();
-            },
+            child: const Text("Close"),
           ),
         ],
       ),
+    );
+  }
+
+  void _openStrokeWidthDialog() {
+    showDialog(
+      context: context,
+      builder: (_) {
+        double tempStrokeWidth = _strokeWidth;
+        return AlertDialog(
+          title: const Text("Select Stroke Width"),
+          content: StatefulBuilder(
+            builder: (context, setState) {
+              return Slider(
+                value: tempStrokeWidth,
+                min: 1.0,
+                max: 20.0,
+                divisions: 19,
+                label: tempStrokeWidth.toStringAsFixed(1),
+                onChanged: (value) {
+                  setState(() {
+                    tempStrokeWidth = value;
+                  });
+                },
+              );
+            },
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text("Cancel"),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                setState(() {
+                  _strokeWidth = tempStrokeWidth;
+                });
+                Navigator.of(context).pop();
+              },
+              child: const Text("OK"),
+            ),
+          ],
+        );
+      },
     );
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Column(
-        children: [
-          // Toolbar
-          Container(
-            color: Colors.grey[200],
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            child: Row(
-              children: [
-                ElevatedButton.icon(
-                  onPressed: _openColorPicker,
-                  icon: Container(
-                    width: 16,
-                    height: 16,
-                    decoration: BoxDecoration(
-                      color: _selectedColor,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.black),
-                    ),
-                  ),
-                  label: const Text("Select Color"),
-                ),
-                const SizedBox(width: 12),
-                ElevatedButton.icon(
-                  onPressed: _clearCanvas,
-                  icon: const Icon(Icons.clear),
-                  label: const Text("Clear"),
-                ),
-              ],
-            ),
-          ),
+  void dispose() {
+    _focusNode.dispose();
+    _repaintDebounceTimer?.cancel();
+    super.dispose();
+  }
 
-          // Drawing Canvas
-          Expanded(
-            child: DrawingCanvas(
-              strokes: _strokes,
-              currentStroke: _currentStroke,
-              onStartStroke: _startStroke,
-              onDraw: _addPoint,
-              onEndStroke: _endStroke,
-              repaintNotifier: _repaintNotifier,
+  @override
+  Widget build(BuildContext context) {
+    return FocusableActionDetector(
+      focusNode: _focusNode,
+      autofocus: true,
+      shortcuts: <LogicalKeySet, Intent>{
+        LogicalKeySet(LogicalKeyboardKey.meta, LogicalKeyboardKey.keyZ):
+            const UndoIntent(),
+        LogicalKeySet(
+          LogicalKeyboardKey.meta,
+          LogicalKeyboardKey.shift,
+          LogicalKeyboardKey.keyZ,
+        ): const RedoIntent(),
+        LogicalKeySet(LogicalKeyboardKey.meta, LogicalKeyboardKey.backspace):
+            const ClearIntent(),
+        LogicalKeySet(LogicalKeyboardKey.meta, LogicalKeyboardKey.keyK):
+            const ColorPickerIntent(),
+        LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyZ):
+            const UndoIntent(),
+        LogicalKeySet(
+          LogicalKeyboardKey.control,
+          LogicalKeyboardKey.shift,
+          LogicalKeyboardKey.keyZ,
+        ): const RedoIntent(),
+        LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.backspace):
+            const ClearIntent(),
+        LogicalKeySet(LogicalKeyboardKey.control, LogicalKeyboardKey.keyK):
+            const ColorPickerIntent(),
+      },
+      actions: <Type, Action<Intent>>{
+        UndoIntent: CallbackAction<UndoIntent>(onInvoke: (_) => _undo()),
+        RedoIntent: CallbackAction<RedoIntent>(onInvoke: (_) => _redo()),
+        ClearIntent: CallbackAction<ClearIntent>(
+          onInvoke: (_) => _clearCanvas(),
+        ),
+        ColorPickerIntent: CallbackAction<ColorPickerIntent>(
+          onInvoke: (_) => _openColorPicker(),
+        ),
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          actions: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: CircleAvatar(radius: 12, backgroundColor: _selectedColor),
             ),
-          ),
-        ],
+            IconButton(
+              tooltip: 'Select Color (⌘K)',
+              icon: const Icon(Icons.palette),
+              onPressed: _openColorPicker,
+            ),
+            IconButton(
+              tooltip: 'Select Stroke Width',
+              icon: const Icon(Icons.brush),
+              onPressed: _openStrokeWidthDialog,
+            ),
+            IconButton(
+              tooltip: 'Undo (⌘Z)',
+              icon: const Icon(Icons.undo),
+              onPressed: _undo,
+            ),
+            IconButton(
+              tooltip: 'Redo (⌘⇧Z)',
+              icon: const Icon(Icons.redo),
+              onPressed: _redo,
+            ),
+            IconButton(
+              tooltip: 'Clear (⌘⌫)',
+              icon: const Icon(Icons.clear),
+              onPressed: _clearCanvas,
+            ),
+          ],
+        ),
+        body: DrawingCanvas(
+          strokes: _strokes,
+          currentStroke: _currentStroke,
+          onStartStroke: _startStroke,
+          onDraw: _addPoint,
+          onEndStroke: _endStroke,
+          repaintNotifier: _repaintNotifier,
+        ),
       ),
     );
   }
 }
+
+// === Custom Intents ===
+
+class UndoIntent extends Intent {
+  const UndoIntent();
+}
+
+class RedoIntent extends Intent {
+  const RedoIntent();
+}
+
+class ClearIntent extends Intent {
+  const ClearIntent();
+}
+
+class ColorPickerIntent extends Intent {
+  const ColorPickerIntent();
+}
+
+// === Canvas ===
 
 class DrawingCanvas extends StatelessWidget {
   final List<Stroke> strokes;
@@ -193,6 +329,8 @@ class DrawingCanvas extends StatelessWidget {
   }
 }
 
+// === Painter ===
+
 class DrawingPainter extends CustomPainter {
   final List<Stroke> strokes;
   final Stroke? currentStroke;
@@ -203,23 +341,24 @@ class DrawingPainter extends CustomPainter {
     Listenable? repaint,
   }) : super(repaint: repaint);
 
-  final Map<Color, Paint> _paintCache = {};
-
-  Paint _getPaint(Color color) {
-    return _paintCache.putIfAbsent(
-      color,
-      () => Paint()
-        ..color = color
-        ..strokeCap = StrokeCap.round
-        ..strokeWidth = 4.0,
-    );
-  }
-
   void _drawStroke(Canvas canvas, Stroke stroke) {
     final points = stroke.points;
-    final paint = _getPaint(stroke.color);
-    for (int i = 0; i < points.length - 1; i++) {
-      canvas.drawLine(points[i], points[i + 1], paint);
+    final baseColor = stroke.color;
+    final strokeWidth = stroke.strokeWidth;
+
+    final paint = Paint()
+      ..color = baseColor
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = strokeWidth
+      ..style = PaintingStyle.stroke;
+
+    if (points.length == 1) {
+      final p = points[0];
+      canvas.drawLine(p, p.translate(0.01, 0.01), paint);
+    } else {
+      for (int i = 0; i < points.length - 1; i++) {
+        canvas.drawLine(points[i], points[i + 1], paint);
+      }
     }
   }
 
@@ -234,5 +373,5 @@ class DrawingPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant DrawingPainter oldDelegate) => true;
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
