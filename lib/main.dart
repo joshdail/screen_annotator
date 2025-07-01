@@ -28,15 +28,29 @@ class _DrawingPageState extends State<DrawingPage> {
 
   void _addPoint(Offset point) => setState(() => _points.add(point));
   void _endStroke() => setState(() => _points.add(null));
+  void _clearCanvas() => setState(() => _points.clear());
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Draw Something")),
-      body: DrawingCanvas(
-        points: _points,
-        onDraw: _addPoint,
-        onEndStroke: _endStroke,
+      body: Stack(
+        children: [
+          DrawingCanvas(
+            points: _points,
+            onDraw: _addPoint,
+            onEndStroke: _endStroke,
+          ),
+          Positioned(
+            bottom: 20,
+            right: 20,
+            child: FloatingActionButton.extended(
+              onPressed: _clearCanvas,
+              icon: const Icon(Icons.clear),
+              label: const Text("Clear"),
+            ),
+          ),
+        ],
       ),
     );
   }
