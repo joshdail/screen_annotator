@@ -26,31 +26,42 @@ class _DrawingPageState extends State<DrawingPage> {
   // Holds the current list of drawn points
   final List<Offset?> _points = [];
 
+  void _addPoint(Offset point) => setState(() => _points.add(point));
+  void _endStroke() => setState(() => _points.add(null));
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text("Draw Something")),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          return GestureDetector(
-            onPanUpdate: (details) {
-              setState(() {
-                _points.add(
-                  details.localPosition,
-                ); // ✅ Use localPosition directly
-              });
-            },
-            onPanEnd: (_) {
-              setState(() {
-                _points.add(null);
-              });
-            },
-            child: CustomPaint(
-              painter: DrawingPainter(points: _points),
-              size: Size.infinite,
-            ),
-          );
-        },
+      body: DrawingCanvas(
+        points: _points,
+        onDraw: _addPoint,
+        onEndStroke: _endStroke,
+      ),
+    );
+  }
+}
+
+class DrawingCanvas extends StatelessWidget {
+  final List<Offset?> points;
+  final ValueChanged<Offset> onDraw;
+  final VoidCallback onEndStroke;
+
+  const DrawingCanvas({
+    super.key,
+    required this.points,
+    required this.onDraw,
+    required this.onEndStroke,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onPanUpdate: (details) => onDraw(details.localPosition),
+      onPanEnd: (_) => onEndStroke(),
+      child: CustomPaint(
+        painter: DrawingPainter(points: points),
+        size: Size.infinite,
       ),
     );
   }
@@ -64,20 +75,19 @@ class DrawingPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = Colors.blue
+      ..color = Colors.blueAccent
       ..strokeCap = StrokeCap.round
       ..strokeWidth = 4.0;
 
     for (int i = 0; i < points.length - 1; i++) {
-      final current = points[i];
-      final next = points[i + 1];
-
-      if (current != null && next != null) {
-        canvas.drawLine(current, next, paint);
+      final p1 = points[i];
+      final p2 = points[i + 1];
+      if (p1 != null && p2 != null) {
+        canvas.drawLine(p1, p2, paint);
       }
     }
-  } // paint
+  }
 
   @override
-  bool shouldRepaint(DrawingPainter oldDelegate) => true;
-} // DrawingPainter
+  bool shouldRepaint(covariant DrawingPainter oldDelegate) => true;
+}
