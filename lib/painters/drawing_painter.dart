@@ -9,8 +9,8 @@ class DrawingPainter extends CustomPainter {
   DrawingPainter({
     required this.strokes,
     required this.currentStroke,
-    Listenable? repaint,
-  }) : super(repaint: repaint);
+    super.repaint,
+  });
 
   void _drawStroke(Canvas canvas, Stroke stroke) {
     final points = stroke.points;

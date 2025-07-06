@@ -12,6 +12,7 @@ import 'package:file_picker/file_picker.dart';
 import '../models/stroke.dart';
 import '../intents.dart';
 import '../widgets/drawing_canvas.dart';
+import '../services/screenshot_service.dart';
 
 class DrawingPage extends StatefulWidget {
   const DrawingPage({super.key});
@@ -237,6 +238,11 @@ class _DrawingPageState extends State<DrawingPage> {
               icon: const Icon(Icons.download),
               onPressed: _exportCanvasToImage,
             ),
+            IconButton(
+              tooltip: 'Capture Screenshot',
+              icon: const Icon(Icons.camera_alt),
+              onPressed: _captureAndDisplayScreenshot,
+            ),
           ],
         ),
         body: DrawingCanvas(
@@ -250,7 +256,7 @@ class _DrawingPageState extends State<DrawingPage> {
         ),
       ),
     );
-  }
+  } // build
 
   Future<void> _exportCanvasToImage() async {
     try {
@@ -287,5 +293,14 @@ class _DrawingPageState extends State<DrawingPage> {
     } catch (err) {
       debugPrint('Failed to export image: $err');
     }
-  }
-}
+  } // _exportCanvasToImage
+
+  void _captureAndDisplayScreenshot() async {
+    final path = await ScreenshotService.captureScreenshot();
+    if (path != null && context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Screenshot saved to $path')));
+    }
+  } // _captureAndDisplayScreenshot
+} // _DrawingPageState
