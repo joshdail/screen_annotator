@@ -1,15 +1,19 @@
-import 'package:flutter/services.dart';
+import 'dart:io';
 
 class ScreenshotService {
-  static const _channel = MethodChannel('screen_annotator/screenshot');
-
   static Future<String?> captureScreenshot() async {
     try {
-      final String? path = await _channel.invokeMethod('captureScreenshot');
-      return path;
-    } on PlatformException catch (err) {
-      print('Screenshot capture failed: ${err.message}');
+      final result = await Process.run('./screenshot_cli', []);
+      if (result.exitCode == 0) {
+        // Optional: parse stdout if CLI outputs path
+        return 'screenshot.png';
+      } else {
+        print('Screenshot CLI error: ${result.stderr}');
+        return null;
+      }
+    } catch (e) {
+      print('Screenshot CLI failed: $e');
       return null;
     }
-  } // captureScreenshot
-} // ScreenshotService
+  }
+}
