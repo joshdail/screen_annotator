@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'dart:ui' as ui;
 
 import '../models/stroke.dart';
 import '../painters/drawing_painter.dart';
 
 class DrawingCanvas extends StatelessWidget {
+  final ui.Image? backgroundImage;
   final List<Stroke> strokes;
   final Stroke? currentStroke;
   final ValueChanged<Offset> onStartStroke;
@@ -14,6 +16,7 @@ class DrawingCanvas extends StatelessWidget {
 
   const DrawingCanvas({
     super.key,
+    required this.backgroundImage,
     required this.strokes,
     required this.currentStroke,
     required this.onStartStroke,
@@ -33,6 +36,7 @@ class DrawingCanvas extends StatelessWidget {
         key: repaintKey,
         child: CustomPaint(
           painter: DrawingPainter(
+            backgroundImage: backgroundImage,
             strokes: strokes,
             currentStroke: currentStroke,
             repaint: repaintNotifier,

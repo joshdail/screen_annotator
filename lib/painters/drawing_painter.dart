@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
+import 'dart:ui' as ui;
 
 import '../models/stroke.dart';
 
 class DrawingPainter extends CustomPainter {
+  final ui.Image? backgroundImage;
   final List<Stroke> strokes;
   final Stroke? currentStroke;
 
   DrawingPainter({
+    required this.backgroundImage,
     required this.strokes,
     required this.currentStroke,
     super.repaint,
@@ -36,6 +39,15 @@ class DrawingPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    if (backgroundImage != null) {
+      paintImage(
+        canvas: canvas,
+        rect: Offset.zero & size,
+        image: backgroundImage!,
+        fit: BoxFit.contain,
+      );
+    }
+
     for (final stroke in strokes) {
       _drawStroke(canvas, stroke);
     }

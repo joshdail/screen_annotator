@@ -34,6 +34,10 @@ class _DrawingPageState extends State<DrawingPage> {
   final FocusNode _focusNode = FocusNode();
   Timer? _repaintDebounceTimer;
 
+  // New fields to hold background image and path
+  ui.Image? _backgroundImage;
+  String? _backgroundImagePath;
+
   void _startStroke(Offset point) {
     setState(() {
       _currentStroke = Stroke(
@@ -66,6 +70,8 @@ class _DrawingPageState extends State<DrawingPage> {
       _strokes.clear();
       _redoStack.clear();
       _currentStroke = null;
+      _backgroundImage = null; // Clear background image too
+      _backgroundImagePath = null;
     });
     _incrementRepaintNotifier();
   }
@@ -165,6 +171,7 @@ class _DrawingPageState extends State<DrawingPage> {
   void dispose() {
     _focusNode.dispose();
     _repaintDebounceTimer?.cancel();
+    _backgroundImage?.dispose();
     super.dispose();
   }
 
@@ -246,6 +253,7 @@ class _DrawingPageState extends State<DrawingPage> {
           ],
         ),
         body: DrawingCanvas(
+          backgroundImage: _backgroundImage,
           strokes: _strokes,
           currentStroke: _currentStroke,
           onStartStroke: _startStroke,
@@ -295,12 +303,38 @@ class _DrawingPageState extends State<DrawingPage> {
     }
   } // _exportCanvasToImage
 
+  Future<ui.Image> _loadImageFromFile(String path) async {
+    final data = await File(path).readAsBytes();
+    final codec = await ui.instantiateImageCodec(data);
+    final frame = await codec.getNextFrame();
+    return frame.image;
+  }
+
   void _captureAndDisplayScreenshot() async {
     final path = await ScreenshotService.captureScreenshot();
     if (path != null && context.mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Screenshot saved to $path')));
+      final image = await _loadImageFromFile(path);
+
+      setState(() {
+        _backgroundImage?.dispose();
+        _backgroundImage = image;
+        _backgroundImagePath = path;
+      });
+
+      // Delete the temporary screenshot file immediately after loading
+      try {
+        final file = File(path);
+        if (await file.exists()) {
+          await file.delete();
+          print('Temporary screenshot file deleted.');
+        }
+      } catch (e) {
+        print('Failed to delete temp screenshot file: $e');
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Screenshot loaded for annotation')),
+      );
     }
-  } // _captureAndDisplayScreenshot
-} // _DrawingPageState
+  }
+}

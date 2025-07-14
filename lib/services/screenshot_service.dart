@@ -7,13 +7,20 @@ class ScreenshotService {
       final execDir = File(Platform.resolvedExecutable).parent;
       final cliPath = path.join(execDir.path, '../Resources/screenshot_tool');
 
-      // Choose a fixed output location (in app's temp dir or current dir)
-      final outputPath = path.join(Directory.systemTemp.path, 'screenshot.png');
+      // Create unique temp file path for the screenshot
+      final tempDir = Directory.systemTemp;
+      final tempFile = File(
+        path.join(
+          tempDir.path,
+          'temp_screenshot_${DateTime.now().millisecondsSinceEpoch}.png',
+        ),
+      );
+      final tempFilePath = tempFile.path;
 
-      final result = await Process.run(cliPath, [outputPath]);
+      final result = await Process.run(cliPath, [tempFilePath]);
 
       if (result.exitCode == 0) {
-        return outputPath;
+        return tempFilePath; // Return full temp path
       } else {
         print('Screenshot CLI error: ${result.stderr}');
         return null;
@@ -23,7 +30,7 @@ class ScreenshotService {
       return null;
     }
   }
-} // ScreenshotService
+}
 
 String getExecutablePath() {
   if (Platform.isMacOS) {
