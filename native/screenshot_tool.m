@@ -11,7 +11,7 @@ int main(int argc, const char * argv[]) {
 
         NSTask *task = [[NSTask alloc] init];
         [task setLaunchPath:@"/usr/sbin/screencapture"];
-        [task setArguments:@[@"-x", outputPath]];
+        [task setArguments:@[@"-i", outputPath]];
 
         [task launch];
         [task waitUntilExit];

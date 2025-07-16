@@ -254,7 +254,6 @@
 				33CC10EB2044A3C60003C045 /* Resources */,
 				33CC110E2044A8840003C045 /* Bundle Framework */,
 				3399D490228B24CF009A79C7 /* ShellScript */,
-				031EE1E42E19F3FB00686D2F /* ShellScript */,
 				2AB0B9F24AED2CD0494E73C3 /* [CP] Embed Pods Frameworks */,
 				037F03572E259F29001BE97D /* Copy Files */,
 			);
@@ -339,23 +338,6 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		031EE1E42E19F3FB00686D2F /* ShellScript */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-			);
-			outputFileListPaths = (
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "cp \"${PROJECT_DIR}/libs/libnative_rust.dylib\" \"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/libnative_rust.dylib\"\n";
-		};
 		037F035A2E25A070001BE97D /* ShellScript */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
